@@ -1,0 +1,59 @@
+services:
+  removebg:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: removebg:latest
+    container_name: removebg
+
+    # Map container port 8000 to a host port. Change the left side if
+    # another service already owns 8000 on the host.
+    ports:
+      - "87486:8000"
+
+    restart: unless-stopped
+
+    environment:
+      # ── Model ────────────────────────────────────────────────────────────────
+      # isnet-general-use  best quality/speed balance on CPU (default, baked in)
+      # u2net              classic, good general-purpose results
+      # u2netp             lightweight, fastest, lower edge quality
+      # birefnet-general   highest quality but very slow on CPU
+      REMBG_MODEL: isnet-general-use
+
+      # ── Upload limits ────────────────────────────────────────────────────────
+      MAX_UPLOAD_MB: "15"
+      ALLOWED_TYPES: "image/png,image/jpeg,image/webp"
+
+      # ── Resolution cap (longest edge, px) ───────────────────────────────────
+      # Very large images are downscaled before inference to prevent OOM.
+      MAX_DIMENSION: "2500"
+
+      # ── Rate limiting (slowapi format: N/period) ─────────────────────────────
+      # Applied per client IP on POST /api/remove.
+      RATE_LIMIT: "20/minute"
+
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s   # Allow time for model load on first start
+      retries: 3
+
+    # ── Optional: named volume so alternate/extra models survive rebuilds ──────
+    # If you set REMBG_MODEL to a model NOT baked into the image, rembg will
+    # attempt to download it on first use.  Mount this volume, copy the .onnx
+    # file there manually, and rembg will find it without a network call.
+    #
+    # volumes:
+    #   - removebg_models:/models
+
+    # ── Optional: resource limits (tune to your homelab) ─────────────────────
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "4.0"     # CPU inference is the bottleneck; give it headroom
+    #       memory: "2g"    # isnet-general-use peaks at ~700 MB; 2g is comfortable
+
+# volumes:
+#   removebg_models:
