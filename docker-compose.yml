@@ -9,7 +9,7 @@ services:
     # Map container port 8000 to a host port. Change the left side if
     # another service already owns 8000 on the host.
     ports:
-      - "87486:8000"
+      - "8748:8000"
 
     restart: unless-stopped
 
