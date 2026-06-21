@@ -4,8 +4,10 @@ import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+import numpy as np
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -17,6 +19,7 @@ from slowapi.errors import RateLimitExceeded
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 REMBG_MODEL = os.getenv("REMBG_MODEL", "isnet-general-use")
+ALLOWED_MODELS = frozenset({"isnet-general-use", "u2net", "u2netp", "birefnet-general"})
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "15"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 ALLOWED_TYPES = set(os.getenv("ALLOWED_TYPES", "image/png,image/jpeg,image/webp").split(","))
@@ -51,18 +54,24 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
     )
 
 
-# ── Model session (initialised once at startup) ───────────────────────────────
+# ── Model session cache (lazy-loaded per model, kept for the process lifetime) ─
 
-_session = None
+_sessions: dict[str, object] = {}
+
+
+def _get_session(model: str) -> object:
+    if model not in _sessions:
+        logger.info("Loading model: %s", model)
+        t0 = time.monotonic()
+        _sessions[model] = new_session(model)
+        logger.info("Model %s ready in %.1fs", model, time.monotonic() - t0)
+    return _sessions[model]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _session
-    logger.info("Loading rembg model: %s", REMBG_MODEL)
-    t0 = time.monotonic()
-    _session = new_session(REMBG_MODEL)
-    logger.info("Model ready in %.1fs", time.monotonic() - t0)
+    # Pre-warm the default model so the first request isn't slow.
+    _get_session(REMBG_MODEL)
     yield
     logger.info("Shutting down")
 
@@ -101,6 +110,25 @@ def _fix_orientation(img: Image.Image) -> Image.Image:
         return img
 
 
+def _apply_tolerance(result: Image.Image, tolerance: int) -> Image.Image:
+    """Harden the alpha-channel mask produced by rembg.
+
+    tolerance=0  → unchanged soft edges (default behaviour)
+    tolerance=100 → near-binary mask; semi-transparent edge pixels are cut away
+
+    Works by stretching the alpha channel so that values below `cutoff` become 0
+    and the rest are scaled back to the 0-255 range.
+    """
+    if result.mode != "RGBA" or tolerance <= 0:
+        return result
+    r, g, b, a = result.split()
+    a_arr = np.array(a, dtype=np.float32)
+    cutoff = tolerance * 2.0              # 0→0, 100→200
+    scale = 255.0 / max(255.0 - cutoff, 1.0)
+    a_arr = np.clip((a_arr - cutoff) * scale, 0.0, 255.0)
+    return Image.merge("RGBA", (r, g, b, Image.fromarray(a_arr.astype(np.uint8), mode="L")))
+
+
 def _downscale(img: Image.Image) -> Image.Image:
     w, h = img.size
     longest = max(w, h)
@@ -133,7 +161,19 @@ async def health():
 
 @app.post("/api/remove")
 @limiter.limit(RATE_LIMIT)
-async def api_remove(request: Request, file: UploadFile = File(...)):
+async def api_remove(
+    request: Request,
+    file: Annotated[UploadFile, File()],
+    model: Annotated[str, Form()] = REMBG_MODEL,
+    tolerance: Annotated[int, Form()] = 0,
+    alpha_matting: Annotated[bool, Form()] = False,
+    alpha_matting_foreground_threshold: Annotated[int, Form()] = 240,
+    alpha_matting_background_threshold: Annotated[int, Form()] = 10,
+):
+    # Validate model
+    if model not in ALLOWED_MODELS:
+        raise HTTPException(status_code=422, detail=f"Unknown model '{model}'.")
+
     # Validate content-type
     ct = (file.content_type or "").split(";")[0].strip().lower()
     if ct not in ALLOWED_TYPES:
@@ -165,7 +205,16 @@ async def api_remove(request: Request, file: UploadFile = File(...)):
         if img.mode not in ("RGB", "RGBA"):
             img = img.convert("RGBA")
 
-        result: Image.Image = remove(img, session=_session)
+        session = _get_session(model)
+        result: Image.Image = remove(
+            img,
+            session=session,
+            alpha_matting=alpha_matting,
+            alpha_matting_foreground_threshold=max(0, min(255, alpha_matting_foreground_threshold)),
+            alpha_matting_background_threshold=max(0, min(255, alpha_matting_background_threshold)),
+        )
+        tolerance = max(0, min(100, tolerance))
+        result = _apply_tolerance(result, tolerance)
 
         buf = io.BytesIO()
         result.save(buf, format="PNG")
@@ -182,8 +231,8 @@ async def api_remove(request: Request, file: UploadFile = File(...)):
 
     elapsed = time.monotonic() - t0
     logger.info(
-        "Processed: model=%s in=%d out=%d elapsed=%.2fs",
-        REMBG_MODEL, len(data), len(out_bytes), elapsed,
+        "Processed: model=%s matting=%s tolerance=%d in=%d out=%d elapsed=%.2fs",
+        model, alpha_matting, tolerance, len(data), len(out_bytes), elapsed,
     )
 
     return Response(

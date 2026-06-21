@@ -20,7 +20,16 @@ const resultImg    = document.getElementById('result-img');
 const removeBtn    = document.getElementById('remove-btn');
 const downloadBtn  = document.getElementById('download-btn');
 const tryAnotherBtn = document.getElementById('try-another-btn');
-const changeBtn    = document.getElementById('change-btn');
+const changeBtn      = document.getElementById('change-btn');
+const toleranceSlider  = document.getElementById('tolerance');
+const toleranceDisplay = document.getElementById('tolerance-display');
+const modelSelect      = document.getElementById('model-select');
+const alphaMattingChk  = document.getElementById('alpha-matting');
+const mattingParams    = document.getElementById('matting-params');
+const fgSlider         = document.getElementById('fg-threshold');
+const fgDisplay        = document.getElementById('fg-display');
+const bgSlider         = document.getElementById('bg-threshold');
+const bgDisplay        = document.getElementById('bg-display');
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +47,27 @@ function showError(msg) {
 function clearError() {
   errorBanner.textContent = '';
 }
+
+// ── Controls: reset to "selected" when any setting changes after a result ─────
+
+function onSettingChange() {
+  if (app.dataset.state === 'done') setState('selected');
+}
+
+toleranceSlider.addEventListener('input', () => {
+  toleranceDisplay.value = toleranceSlider.value;
+  onSettingChange();
+});
+
+modelSelect.addEventListener('change', onSettingChange);
+
+alphaMattingChk.addEventListener('change', () => {
+  mattingParams.classList.toggle('open', alphaMattingChk.checked);
+  onSettingChange();
+});
+
+fgSlider.addEventListener('input', () => { fgDisplay.value = fgSlider.value; onSettingChange(); });
+bgSlider.addEventListener('input', () => { bgDisplay.value = bgSlider.value; onSettingChange(); });
 
 // ── Drop zone ─────────────────────────────────────────────────────────────────
 
@@ -118,6 +148,11 @@ async function processImage() {
 
   const formData = new FormData();
   formData.append('file', currentFile);
+  formData.append('model', modelSelect.value);
+  formData.append('tolerance', toleranceSlider.value);
+  formData.append('alpha_matting', alphaMattingChk.checked.toString());
+  formData.append('alpha_matting_foreground_threshold', fgSlider.value);
+  formData.append('alpha_matting_background_threshold', bgSlider.value);
 
   try {
     const res = await fetch('/api/remove', {
@@ -162,7 +197,7 @@ downloadBtn.addEventListener('click', () => {
   a.download = filename;
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
+  a.remove();
   // Delay revoke so the download can start
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
@@ -171,7 +206,7 @@ downloadBtn.addEventListener('click', () => {
 
 function resetApp() {
   // Clean up any object URLs still held by the result image
-  if (resultImg.src && resultImg.src.startsWith('blob:')) {
+  if (resultImg.src?.startsWith('blob:')) {
     URL.revokeObjectURL(resultImg.src);
   }
   currentFile     = null;

@@ -20,7 +20,7 @@
       </svg>
       <span>removebg</span>
     </div>
-    <p class="tagline">Self-hosted &middot; Privacy-first &middot; No data leaves your server</p>
+    <p class="tagline">Self-hosted &middot; Privacy-first &middot; By Nwen</p>
   </div>
 </header>
 
@@ -94,19 +94,83 @@
 
   <!-- ── Action bar ──────────────────────────────────────────────── -->
   <div class="action-bar" id="action-bar">
-    <!-- shown in "selected" state -->
-    <button class="btn-primary" id="remove-btn" type="button">Remove Background</button>
-    <!-- shown in "done" state -->
-    <button class="btn-primary" id="download-btn" type="button">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <polyline points="8 17 12 21 16 17"/>
-        <line x1="12" y1="12" x2="12" y2="21"/>
-        <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.36"/>
-      </svg>
-      Download PNG
-    </button>
-    <button class="btn-secondary" id="try-another-btn" type="button">Try another image</button>
+
+    <div class="controls-panel">
+
+      <!-- model selector -->
+      <div class="control-group">
+        <label class="control-label" for="model-select">Model</label>
+        <select id="model-select" class="model-select">
+          <option value="isnet-general-use">isnet-general-use — best quality/speed ★</option>
+          <option value="u2net">u2net — classic, reliable</option>
+          <option value="u2netp">u2netp — fastest, lower quality</option>
+          <option value="birefnet-general">birefnet-general — highest quality (slow on CPU)</option>
+        </select>
+        <p class="control-hint">★ baked into image &middot; others download on first use (~170–380&nbsp;MB)</p>
+      </div>
+
+      <!-- tolerance slider -->
+      <div class="control-group" id="tolerance-wrap">
+        <label class="control-label" for="tolerance">
+          Tolerance: <output id="tolerance-display" for="tolerance">0</output>%
+        </label>
+        <input type="range" id="tolerance" min="0" max="100" value="0" step="5">
+        <div class="range-hints" aria-hidden="true">
+          <span>Soft edges</span>
+          <span>Hard edges</span>
+        </div>
+      </div>
+
+      <!-- alpha matting -->
+      <div class="control-group">
+        <label class="checkbox-label">
+          <input type="checkbox" id="alpha-matting">
+          <span>Refine edges</span>
+          <span class="badge">slower</span>
+        </label>
+        <p class="control-hint">Alpha matting — better detail on hair, fur &amp; fine edges</p>
+
+        <div class="matting-params" id="matting-params">
+          <div class="control-group">
+            <label class="control-label" for="fg-threshold">
+              Foreground threshold: <output id="fg-display" for="fg-threshold">240</output>
+            </label>
+            <input type="range" id="fg-threshold" min="0" max="255" value="240" step="5">
+            <div class="range-hints" aria-hidden="true">
+              <span>Keep more</span>
+              <span>Keep less</span>
+            </div>
+          </div>
+          <div class="control-group">
+            <label class="control-label" for="bg-threshold">
+              Background threshold: <output id="bg-display" for="bg-threshold">10</output>
+            </label>
+            <input type="range" id="bg-threshold" min="0" max="255" value="10" step="5">
+            <div class="range-hints" aria-hidden="true">
+              <span>Keep more bg</span>
+              <span>Remove more bg</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.controls-panel -->
+
+    <!-- buttons -->
+    <div class="btn-row">
+      <button class="btn-primary" id="remove-btn" type="button">Remove Background</button>
+      <button class="btn-primary" id="download-btn" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="8 17 12 21 16 17"/>
+          <line x1="12" y1="12" x2="12" y2="21"/>
+          <path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.36"/>
+        </svg>
+        Download PNG
+      </button>
+      <button class="btn-secondary" id="try-another-btn" type="button">Try another image</button>
+    </div>
+
   </div>
 
 </main>
