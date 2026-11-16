@@ -1,0 +1,42 @@
+# Fusionne automatiquement les PR Dependabot qui passent les vérifications ci-dessous :
+# correctifs et versions mineures des dépendances, correctifs seulement pour les images Docker
+# de base. Le reste (versions majeures, actions GitHub) attend une relecture à la main.
+# Après la fusion, Portainer voit le nouveau commit (GitOps, polling) et redéploie la stack.
+name: Dependabot auto-merge
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Construire l'image
+        run: docker build .
+
+  merge:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v3
+      - name: Fusionner si correctif, ou version mineure hors image Docker
+        if: >-
+          steps.meta.outputs.package-ecosystem != 'github_actions' && (
+            steps.meta.outputs.update-type == 'version-update:semver-patch' ||
+            (steps.meta.outputs.update-type == 'version-update:semver-minor' &&
+             steps.meta.outputs.package-ecosystem != 'docker'))
+        run: gh pr merge --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

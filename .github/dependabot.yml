@@ -1,0 +1,19 @@
+# Dependabot : PR de sécurité dès qu'une alerte apparaît, et mises à jour regroupées chaque semaine.
+# La fusion automatique est décrite dans .github/workflows/dependabot-automerge.yml.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

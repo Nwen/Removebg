@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: removebg:latest
+    pull_policy: build # reconstruit l'image à chaque redéploiement (sinon l'ancienne est réutilisée)
     container_name: removebg
 
     # Map container port 8000 to a host port. Change the left side if
