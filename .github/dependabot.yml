@@ -8,6 +8,13 @@ updates:
       interval: weekly
     groups:
       minor-patch:
+        applies-to: version-updates
+        patterns: ['*']
+        update-types: [minor, patch]
+      # Un seul PR pour toutes les failles corrigeables sans version majeure.
+      security:
+        applies-to: security-updates
+        patterns: ['*']
         update-types: [minor, patch]
   - package-ecosystem: docker
     directory: /
