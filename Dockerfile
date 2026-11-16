@@ -1,7 +1,7 @@
 # ── Stage 1: builder ──────────────────────────────────────────────────────────
 # Install Python deps + pre-download the default rembg model.
 # Build tools (gcc, g++) are not carried into the final image.
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 
 WORKDIR /build
 
@@ -25,7 +25,7 @@ RUN python -c "from rembg import new_session; new_session('isnet-general-use')"
 
 
 # ── Stage 2: runtime ──────────────────────────────────────────────────────────
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 # libgomp1: OpenMP runtime required by onnxruntime CPU parallelism.
 # curl:     lightweight healthcheck alternative to a Python subprocess.
